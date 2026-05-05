@@ -1,18 +1,942 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.7">
-  <style type="text/css">
-    body {background-color: #0c0c0c}
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 12.0px 'Helvetica Neue'; color: #e2e2e2; -webkit-text-stroke: #e2e2e2; min-height: 15.0px}
-    span.s1 {font-kerning: none}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品損益紀錄</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d; --surface: #161616; --surface2: #1f1f1f;
+    --border: #2a2a2a; --accent: #c8f03c; --blue: #3cb8f0;
+    --profit: #3cf0a0; --loss: #f04a3c; --text: #e8e8e8; --muted: #666;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans TC', sans-serif; min-height: 100vh; padding: 2rem 1rem; }
+
+  /* ── Login Screen ── */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; position: fixed; inset: 0;
+    background: var(--bg); z-index: 200; flex-direction: column; gap: 2rem;
+  }
+  #login-screen.hidden { display: none; }
+  .login-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3rem 2.5rem; text-align: center;
+    width: min(380px, 90vw);
+  }
+  .login-logo { font-family: 'Space Mono', monospace; font-size: 2rem; color: var(--accent); letter-spacing: -1px; margin-bottom: 0.5rem; }
+  .login-sub  { color: var(--muted); font-size: 0.85rem; margin-bottom: 2.5rem; }
+  .btn-google {
+    display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+    width: 100%; background: #fff; color: #333; border: none;
+    padding: 0.85rem 1.5rem; border-radius: 10px; font-size: 0.95rem;
+    font-weight: 600; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+  .btn-google:hover { opacity: 0.92; }
+  .btn-google:active { transform: scale(0.98); }
+  .btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .login-note { color: var(--muted); font-size: 0.75rem; margin-top: 1.2rem; }
+
+  /* ── Loading ── */
+  #loading {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; position: fixed; inset: 0; background: var(--bg); z-index: 300;
+  }
+  #loading.hidden { display: none; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Config Banner ── */
+  #config-banner {
+    background: rgba(240,74,60,0.12); border: 1px solid rgba(240,74,60,0.4);
+    border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+    font-size: 0.83rem; color: #f8a8a4; line-height: 1.6; display: none;
+  }
+  #config-banner strong { color: var(--loss); }
+  #config-banner code { background: rgba(255,255,255,0.08); padding: 0.1rem 0.4rem; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 0.78rem; }
+
+  /* ── Header ── */
+  header {
+    max-width: 1060px; margin: 0 auto 2.5rem;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding-bottom: 1.5rem;
+    gap: 1rem; flex-wrap: wrap;
+  }
+  .logo { font-family: 'Space Mono', monospace; font-size: 1.5rem; color: var(--accent); letter-spacing: -1px; }
+  .logo span { color: var(--muted); font-size: 0.78rem; display: block; font-family: 'Noto Sans TC', sans-serif; margin-top: 3px; }
+  .header-right { display: flex; align-items: flex-end; gap: 2rem; flex-wrap: wrap; }
+  .stats-bar { display: flex; gap: 1.8rem; font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: right; flex-wrap: wrap; }
+  .stats-bar .val { font-size: 1.05rem; display: block; font-weight: 700; }
+  .stats-bar .val.pos  { color: var(--profit); }
+  .stats-bar .val.neg  { color: var(--loss); }
+  .stats-bar .val.neu  { color: var(--text); }
+  .stats-bar .val.blue { color: var(--blue); }
+
+  /* User info */
+  .user-info { display: flex; align-items: center; gap: 0.6rem; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); }
+  .user-name { font-size: 0.78rem; color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-logout { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.72rem; font-family: 'Noto Sans TC', sans-serif; transition: all 0.15s; }
+  .btn-logout:hover { border-color: var(--loss); color: var(--loss); }
+
+  /* ── Main ── */
+  .main { max-width: 1060px; margin: 0 auto; }
+
+  .tabs { display: flex; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: none; border: none; color: var(--muted);
+    padding: 0.7rem 1.6rem; font-size: 0.9rem;
+    font-family: 'Noto Sans TC', sans-serif; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.05rem 0.5rem; font-size: 0.68rem; font-family: 'Space Mono', monospace; color: var(--muted); }
+  .tab-btn.active .tab-badge { background: rgba(200,240,60,0.12); border-color: rgba(200,240,60,0.3); color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem; margin-bottom: 1.5rem; }
+  .form-title { font-size: 0.68rem; font-family: 'Space Mono', monospace; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1.2rem; }
+  .form-grid { display: grid; gap: 0.75rem; align-items: end; }
+  .buy-grid { grid-template-columns: 2fr 1fr 1fr auto; }
+  .form-group label { display: block; font-size: 0.68rem; color: var(--muted); margin-bottom: 0.35rem; letter-spacing: 1px; }
+  .form-group input, .form-group select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.6rem 0.85rem; border-radius: 8px; font-size: 0.9rem; font-family: 'Noto Sans TC', sans-serif; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group input::placeholder { color: var(--muted); }
+  .btn-add { background: var(--accent); color: #000; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; white-space: nowrap; transition: opacity 0.2s, transform 0.1s; font-family: 'Noto Sans TC', sans-serif; }
+  .btn-add:hover { opacity: 0.85; }
+  .btn-add:active { transform: scale(0.97); }
+  .btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .toolbar { display: flex; gap: 0.6rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
+  .toolbar input, .toolbar select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.48rem 0.85rem; border-radius: 8px; font-size: 0.85rem; font-family: 'Noto Sans TC', sans-serif; outline: none; transition: border-color 0.2s; }
+  .toolbar input { flex: 1; min-width: 160px; }
+  .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface2); }
+  th { padding: 0.85rem 1rem; font-size: 0.66rem; font-family: 'Space Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; text-align: left; font-weight: 400; }
+  th.num, td.num { text-align: right; }
+  tbody tr { border-top: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:hover { background: var(--surface2); }
+  td { padding: 0.8rem 1rem; font-size: 0.87rem; }
+
+  .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); padding: 0.12rem 0.55rem; border-radius: 20px; font-size: 0.7rem; color: var(--muted); }
+  .mono { font-family: 'Space Mono', monospace; font-size: 0.82rem; }
+  .profit-val { color: var(--profit); font-family: 'Space Mono', monospace; font-size: 0.82rem; font-weight: 700; }
+  .loss-val   { color: var(--loss);   font-family: 'Space Mono', monospace; font-size: 0.82rem; font-weight: 700; }
+  .margin-pill { display: inline-block; padding: 0.12rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-family: 'Space Mono', monospace; font-weight: 700; }
+  .margin-pos { background: rgba(60,240,160,0.12); color: var(--profit); }
+  .margin-neg { background: rgba(240,74,60,0.12);  color: var(--loss); }
+
+  .btn-sell { background: rgba(200,240,60,0.1); border: 1px solid rgba(200,240,60,0.35); color: var(--accent); padding: 0.28rem 0.65rem; border-radius: 6px; cursor: pointer; font-size: 0.73rem; font-family: 'Noto Sans TC', sans-serif; transition: all 0.15s; margin-right: 0.3rem; }
+  .btn-sell:hover { background: rgba(200,240,60,0.2); }
+  .btn-edit { background: none; border: 1px solid var(--border); color: var(--blue); padding: 0.28rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.73rem; transition: all 0.15s; margin-right: 0.3rem; }
+  .btn-edit:hover { border-color: var(--blue); background: rgba(60,184,240,0.08); }
+  .btn-del { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.28rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.73rem; transition: all 0.15s; }
+  .btn-del:hover { border-color: var(--loss); color: var(--loss); }
+
+  .empty { text-align: center; color: var(--muted); padding: 3rem; font-size: 0.85rem; }
+
+  /* saving indicator */
+  .saving { font-size: 0.72rem; color: var(--muted); font-family: 'Space Mono', monospace; opacity: 0; transition: opacity 0.3s; }
+  .saving.show { opacity: 1; }
+
+  /* ── Modal ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: min(420px, 90vw); }
+  .modal h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+  .modal p  { color: var(--muted); font-size: 0.82rem; margin-bottom: 1.5rem; }
+  .modal label { display: block; font-size: 0.68rem; color: var(--muted); margin-bottom: 0.35rem; letter-spacing: 1px; }
+  .modal input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 1rem; font-family: 'Space Mono', monospace; outline: none; margin-bottom: 1.2rem; transition: border-color 0.2s; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-preview { background: var(--surface2); border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 1.5rem; font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--muted); display: flex; justify-content: space-between; }
+  .modal-preview .big { font-size: 1.1rem; font-weight: 700; }
+  .modal-preview .big.pos { color: var(--profit); }
+  .modal-preview .big.neg { color: var(--loss); }
+  .modal-btns { display: flex; gap: 0.75rem; justify-content: flex-end; }
+  .btn-cancel  { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; transition: border-color 0.2s; }
+  .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+  .btn-confirm { background: var(--accent); border: none; color: #000; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; transition: opacity 0.2s; }
+  .btn-confirm:hover { opacity: 0.85; }
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  tbody tr { animation: slideIn 0.18s ease; }
+
+  @media (max-width: 680px) {
+    .buy-grid { grid-template-columns: 1fr 1fr; }
+    .buy-grid .btn-wrap { grid-column: 1/-1; }
+    .stats-bar { gap: 1rem; }
+    .tab-btn { padding: 0.7rem 0.9rem; font-size: 0.82rem; }
+    .header-right { flex-direction: column; align-items: flex-end; gap: 1rem; }
+  }
+</style>
 </head>
 <body>
-<p class="p1"><span class="s1"></span><br></p>
+
+<!-- Loading -->
+<div id="loading"><div class="spinner"></div></div>
+
+<!-- Login Screen -->
+<div id="login-screen" class="hidden">
+  <div class="login-box">
+    <div class="login-logo">PROFIT</div>
+    <div class="login-sub">商品損益紀錄系統</div>
+    <button class="btn-google" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      使用 Google 帳號登入
+    </button>
+    <div class="login-note">登入後資料將儲存於雲端，<br>任何裝置皆可存取</div>
+  </div>
+</div>
+
+<!-- App -->
+<header id="app-header" style="display:none">
+  <div class="logo">PROFIT<br><span>商品損益紀錄系統</span></div>
+  <div class="header-right">
+    <div class="stats-bar">
+      <div><span class="val blue" id="stat-inv">0</span>庫存商品</div>
+      <div><span class="val neu"  id="stat-inv-cost">$0</span>庫存成本</div>
+      <div><span class="val neu"  id="stat-sold">0</span>已售出</div>
+      <div><span class="val neu"  id="stat-revenue">$0</span>總收入</div>
+      <div><span class="val pos"  id="stat-profit">$0</span>淨利潤</div>
+    </div>
+    <div class="user-info">
+      <img id="user-avatar" class="user-avatar" src="" alt="">
+      <span id="user-name" class="user-name"></span>
+      <button class="btn-logout" onclick="signOut()">登出</button>
+    </div>
+  </div>
+</header>
+
+<div class="main" id="app-main" style="display:none">
+  <div id="config-banner"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('buy')">📦 買入紀錄 <span class="tab-badge" id="badge-buy">0</span></button>
+    <button class="tab-btn"        onclick="switchTab('inv')">🗃️ 庫存 <span class="tab-badge" id="badge-inv">0</span></button>
+    <button class="tab-btn"        onclick="switchTab('sold')">✅ 已售出 <span class="tab-badge" id="badge-sold">0</span></button>
+    <button class="tab-btn"        onclick="switchTab('monthly')">📊 每月報表</button>
+  </div>
+
+  <!-- 買入 -->
+  <div class="tab-panel active" id="panel-buy">
+    <div class="form-card">
+      <div class="form-title">＋ 新增買入（自動加入庫存）</div>
+      <div class="form-grid buy-grid">
+        <div class="form-group"><label>商品名稱</label><input type="text" id="b-name" placeholder="例：AirPods Pro"></div>
+        <div class="form-group"><label>分類</label><input type="text" id="b-cat" placeholder="例：3C"></div>
+        <div class="form-group"><label>買入成本 (元)</label><input type="number" id="b-cost" placeholder="0" min="0"></div>
+        <div class="form-group btn-wrap"><label>&nbsp;</label><button class="btn-add" id="btn-add-buy" onclick="addBuy()">加入庫存</button></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="b-search" placeholder="🔍 搜尋…" oninput="renderBuy()">
+      <select id="b-cat-filter" onchange="renderBuy()"><option value="">所有分類</option></select>
+      <select id="b-sort" onchange="renderBuy()">
+        <option value="date-desc">最新優先</option>
+        <option value="date-asc">最舊優先</option>
+        <option value="cost-desc">成本高→低</option>
+        <option value="cost-asc">成本低→高</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">買入成本</th><th>狀態</th><th>日期</th><th></th></tr></thead>
+      <tbody id="tbody-buy"></tbody></table>
+      <div class="empty" id="empty-buy">尚無買入紀錄，請新增 👆</div>
+    </div>
+  </div>
+
+  <!-- 庫存 -->
+  <div class="tab-panel" id="panel-inv">
+    <div class="toolbar">
+      <input type="text" id="i-search" placeholder="🔍 搜尋…" oninput="renderInv()">
+      <select id="i-cat-filter" onchange="renderInv()"><option value="">所有分類</option></select>
+      <select id="i-sort" onchange="renderInv()">
+        <option value="date-desc">最新優先</option>
+        <option value="date-asc">最舊優先</option>
+        <option value="cost-desc">成本高→低</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本</th><th>入庫日期</th><th></th></tr></thead>
+      <tbody id="tbody-inv"></tbody></table>
+      <div class="empty" id="empty-inv">庫存為空 📦</div>
+    </div>
+  </div>
+
+  <!-- 已售出 -->
+  <div class="tab-panel" id="panel-sold">
+    <div class="toolbar">
+      <input type="text" id="s-search" placeholder="🔍 搜尋…" oninput="renderSold()">
+      <select id="s-cat-filter" onchange="renderSold()"><option value="">所有分類</option></select>
+      <select id="s-sort" onchange="renderSold()">
+        <option value="date-desc">最新優先</option>
+        <option value="date-asc">最舊優先</option>
+        <option value="profit-desc">利潤高→低</option>
+        <option value="profit-asc">利潤低→高</option>
+        <option value="margin-desc">毛利率高→低</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本</th><th class="num">售價</th><th class="num">利潤</th><th class="num">毛利率</th><th>售出日期</th><th></th></tr></thead>
+      <tbody id="tbody-sold"></tbody></table>
+      <div class="empty" id="empty-sold">尚無售出紀錄 ✅</div>
+    </div>
+  </div>
+
+  <!-- 每月報表 -->
+  <div class="tab-panel" id="panel-monthly">
+    <div class="form-card">
+      <div class="form-title">＋ 新增雜支（運費、平台費等）</div>
+      <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr auto">
+        <div class="form-group"><label>項目名稱</label><input type="text" id="ex-name" placeholder="例：蝦皮手續費"></div>
+        <div class="form-group"><label>金額 (元)</label><input type="number" id="ex-amount" placeholder="0" min="0"></div>
+        <div class="form-group"><label>月份</label><input type="month" id="ex-month"></div>
+        <div class="form-group btn-wrap"><label>&nbsp;</label><button class="btn-add" onclick="addExpense()">新增</button></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <select id="m-year" onchange="renderMonthly()"></select>
+      <select id="m-month" onchange="renderMonthly()">
+        <option value="">全年</option>
+        <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+        <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+        <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+    </div>
+    <div id="monthly-summary"></div>
+    <div style="margin-top:1.5rem">
+      <div class="form-title" style="margin-bottom:0.8rem">雜支明細</div>
+      <div class="table-wrap">
+        <table><thead><tr><th>項目</th><th>月份</th><th class="num">金額</th><th></th></tr></thead>
+        <tbody id="tbody-expense"></tbody></table>
+        <div class="empty" id="empty-expense">尚無雜支紀錄</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 售出 Modal -->
+<div class="modal-overlay" id="sell-modal">
+  <div class="modal">
+    <h3>登記售出</h3>
+    <p id="modal-item-name"></p>
+    <label>實際售價 (元)</label>
+    <input type="number" id="modal-price" placeholder="0" min="0" oninput="updatePreview()">
+    <div class="modal-preview">
+      <div>成本<br><span class="mono" id="preview-cost">$0</span></div>
+      <div>售價<br><span class="mono" id="preview-price">—</span></div>
+      <div>利潤<br><span class="big" id="preview-profit">—</span></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-confirm" onclick="confirmSell()">確認售出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯 Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3 id="edit-modal-title">編輯紀錄</h3>
+    <p id="edit-modal-sub" style="margin-bottom:1.2rem;color:var(--muted);font-size:0.82rem"></p>
+    <div id="edit-fields"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeEditModal()">取消</button>
+      <button class="btn-confirm" onclick="confirmEdit()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut }
+                                                  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy }
+                                                  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// ═══════════════════════════════════════════════════════
+//  🔧 在這裡填入你的 Firebase 設定
+//  步驟：https://console.firebase.google.com → 建立專案
+//       → 新增網頁應用程式 → 複製 firebaseConfig
+// ═══════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyDoc71zn7qDfBLnvvhjTpnqhn4vLpQeONM",
+  authDomain: "stock-item-system.firebaseapp.com",
+  projectId: "stock-item-system",
+  storageBucket: "stock-item-system.firebasestorage.app",
+  messagingSenderId: "872737981959",
+  appId: "1:872737981959:web:422e43b69b7af193becca2",
+  measurementId: "G-4TTQJM27WF"
+};
+// ═══════════════════════════════════════════════════════
+
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+let app, auth, db, currentUser;
+let buys = [], inv = [], sold = [], expenses = [];
+let unsubExpense;
+let unsubBuys, unsubInv, unsubSold;
+let sellTarget = null;
+
+// ── Init ──────────────────────────────────────────────
+function init() {
+  if (!isConfigured) {
+    showConfigBanner();
+    hideLoading();
+    showLoginScreen(); // still show login UI so user knows what to expect
+    return;
+  }
+  app  = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db   = getFirestore(app);
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      currentUser = user;
+      showApp(user);
+      subscribeData();
+    } else {
+      currentUser = null;
+      unsubscribeData();
+      hideApp();
+      hideLoading();
+      showLoginScreen();
+    }
+  });
+}
+
+// ── Config banner ─────────────────────────────────────
+function showConfigBanner() {
+  const b = document.getElementById('config-banner');
+  b.style.display = 'block';
+  b.innerHTML = `<strong>⚠️ 尚未設定 Firebase</strong><br>
+    請打開此 HTML 檔案，找到 <code>firebaseConfig</code> 區塊，填入你的 Firebase 專案設定後重新部署。<br>
+    <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">→ 前往 Firebase Console 建立專案</a>`;
+}
+
+// ── Auth ──────────────────────────────────────────────
+window.signInWithGoogle = async function() {
+  if (!isConfigured) { alert('請先填入 Firebase 設定！'); return; }
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  } catch(e) { console.error(e); alert('登入失敗：' + e.message); }
+};
+window.signOut = async function() {
+  if (!confirm('確定登出？')) return;
+  await fbSignOut(auth);
+};
+
+// ── Show/hide ─────────────────────────────────────────
+function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+function showLoginScreen() { document.getElementById('login-screen').classList.remove('hidden'); }
+function hideLoginScreen() { document.getElementById('login-screen').classList.add('hidden'); }
+function showApp(user) {
+  hideLoading();
+  hideLoginScreen();
+  document.getElementById('app-header').style.display = '';
+  document.getElementById('app-main').style.display = '';
+  document.getElementById('user-name').textContent   = user.displayName || user.email;
+  document.getElementById('user-avatar').src         = user.photoURL || '';
+  document.getElementById('user-avatar').style.display = user.photoURL ? '' : 'none';
+  if (!isConfigured) showConfigBanner();
+}
+function hideApp() {
+  document.getElementById('app-header').style.display = 'none';
+  document.getElementById('app-main').style.display   = 'none';
+}
+
+// ── Firestore paths ───────────────────────────────────
+const col = (name) => collection(db, 'users', currentUser.uid, name);
+
+// ── Subscribe realtime ────────────────────────────────
+function subscribeData() {
+  unsubBuys = onSnapshot(query(col('buys'), orderBy('ts','desc')), snap => {
+    buys = snap.docs.map(d => ({...d.data(), id: d.id}));
+    renderBuy(); updateStats();
+  });
+  unsubInv = onSnapshot(query(col('inv'), orderBy('ts','desc')), snap => {
+    inv = snap.docs.map(d => ({...d.data(), id: d.id}));
+    renderInv(); updateStats();
+  });
+  unsubSold = onSnapshot(query(col('sold'), orderBy('ts','desc')), snap => {
+    sold = snap.docs.map(d => ({...d.data(), id: d.id}));
+    renderSold(); updateStats();
+    renderSold(); updateStats();
+  });
+  unsubExpense = onSnapshot(query(col('expenses'), orderBy('ts','desc')), snap => {
+    expenses = snap.docs.map(d => ({...d.data(), id: d.id}));
+    renderMonthly();
+  });
+}
+function unsubscribeData() {
+  if (unsubBuys) unsubBuys();
+  if (unsubInv)  unsubInv();
+  if (unsubSold) unsubSold();
+  if (unsubExpense) unsubExpense();
+  if (unsubInv)  unsubInv();
+  if (unsubSold) unsubSold();
+}
+
+// ── Saving indicator ──────────────────────────────────
+function flashSaving() {
+  // subtle — just rely on Firebase real-time update to confirm
+}
+
+// ── Add Buy ───────────────────────────────────────────
+window.addBuy = async function() {
+  const name = document.getElementById('b-name').value.trim();
+  const cat  = document.getElementById('b-cat').value.trim() || '未分類';
+  const cost = parseFloat(document.getElementById('b-cost').value);
+  if (!name) return alert('請輸入商品名稱');
+  if (isNaN(cost) || cost < 0) return alert('請輸入有效成本');
+  const btn = document.getElementById('btn-add-buy');
+  btn.disabled = true;
+  const id = Date.now().toString();
+  const ts = Date.now();
+  const dateStr = new Date().toLocaleDateString('zh-TW');
+  try {
+    await setDoc(doc(col('buys'), id), { name, cat, cost, status: 'in-stock', date: dateStr, ts });
+    await setDoc(doc(col('inv'),  id), { name, cat, cost, date: dateStr, ts });
+    ['b-name','b-cat','b-cost'].forEach(i => document.getElementById(i).value = '');
+  } catch(e) { alert('儲存失敗：' + e.message); }
+  btn.disabled = false;
+};
+
+// ── Delete ────────────────────────────────────────────
+window.delBuy = async function(id) {
+  if (!confirm('確定刪除？這也會從庫存移除。')) return;
+  await deleteDoc(doc(col('buys'), id));
+  await deleteDoc(doc(col('inv'),  id)).catch(()=>{});
+};
+window.delInv = async function(id) {
+  if (!confirm('確定從庫存移除？')) return;
+  await deleteDoc(doc(col('inv'), id));
+  // update buy status
+  const r = buys.find(x => x.id === id);
+  if (r) await setDoc(doc(col('buys'), id), {...r, status:'removed'});
+};
+window.delSold = async function(id) {
+  if (!confirm('確定刪除售出紀錄？')) return;
+  await deleteDoc(doc(col('sold'), id));
+};
+
+// ── Sell Modal ────────────────────────────────────────
+window.openSellModal = function(id) {
+  sellTarget = inv.find(r => r.id === id);
+  if (!sellTarget) return;
+  document.getElementById('modal-item-name').textContent = sellTarget.name + '（成本 ' + fmt(sellTarget.cost) + '）';
+  document.getElementById('modal-price').value = '';
+  document.getElementById('preview-cost').textContent = fmt(sellTarget.cost);
+  document.getElementById('sell-modal').classList.add('open');
+  updatePreview();
+  setTimeout(() => document.getElementById('modal-price').focus(), 50);
+};
+window.closeModal = function() {
+  document.getElementById('sell-modal').classList.remove('open');
+  sellTarget = null;
+};
+window.updatePreview = function() {
+  if (!sellTarget) return;
+  const p = parseFloat(document.getElementById('modal-price').value);
+  document.getElementById('preview-price').textContent = isNaN(p) ? '—' : fmt(p);
+  if (!isNaN(p)) {
+    const profit = p - sellTarget.cost;
+    const el = document.getElementById('preview-profit');
+    el.textContent = (profit >= 0 ? '+' : '') + fmt(profit);
+    el.className = 'big ' + (profit >= 0 ? 'pos' : 'neg');
+  } else {
+    document.getElementById('preview-profit').textContent = '—';
+    document.getElementById('preview-profit').className = 'big';
+  }
+};
+window.confirmSell = async function() {
+  const p = parseFloat(document.getElementById('modal-price').value);
+  if (isNaN(p) || p < 0) return alert('請輸入有效售價');
+  const r = sellTarget;
+  const id = Date.now().toString();
+  try {
+    await setDoc(doc(col('sold'), id), { name: r.name, cat: r.cat, cost: r.cost, price: p, date: new Date().toLocaleDateString('zh-TW'), ts: Date.now() });
+    await deleteDoc(doc(col('inv'), r.id));
+    await setDoc(doc(col('buys'), r.id), {...(buys.find(x=>x.id===r.id)||r), status:'sold'});
+    closeModal();
+  } catch(e) { alert('儲存失敗：' + e.message); }
+};
+
+// ── Tabs ──────────────────────────────────────────────
+window.switchTab = function(t) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + t).classList.add('active');
+  document.querySelectorAll('.tab-btn')[{buy:0,inv:1,sold:2,monthly:3}[t]].classList.add('active');
+  if (t === 'monthly') renderMonthly();
+};
+
+// ── Helpers ───────────────────────────────────────────
+const fmt = n => '$' + Number(n).toLocaleString('zh-TW');
+
+function filterSort(list, searchId, catFilterId, sortId) {
+  const q  = document.getElementById(searchId).value.toLowerCase();
+  const cf = document.getElementById(catFilterId).value;
+  const sv = document.getElementById(sortId).value;
+  let out = list.filter(r =>
+    (!q  || r.name.toLowerCase().includes(q) || r.cat.toLowerCase().includes(q)) &&
+    (!cf || r.cat === cf)
+  );
+  out.sort((a, b) => {
+    if (sv === 'date-asc')    return (a.ts||0) - (b.ts||0);
+    if (sv === 'cost-desc')   return b.cost - a.cost;
+    if (sv === 'cost-asc')    return a.cost - b.cost;
+    if (sv === 'profit-desc') return (b.price-b.cost) - (a.price-a.cost);
+    if (sv === 'profit-asc')  return (a.price-a.cost) - (b.price-b.cost);
+    if (sv === 'margin-desc') return (b.cost?(b.price-b.cost)/b.cost:0)-(a.cost?(a.price-a.cost)/a.cost:0);
+    return (b.ts||0) - (a.ts||0);
+  });
+  return out;
+}
+function setCats(list, filterId) {
+  const cats = [...new Set(list.map(r => r.cat))].sort();
+  const sel  = document.getElementById(filterId);
+  const cur  = sel.value;
+  sel.innerHTML = '<option value="">所有分類</option>' +
+    cats.map(c => `<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+}
+
+// ── Renders ───────────────────────────────────────────
+function renderBuy() {
+  setCats(buys, 'b-cat-filter');
+  const list = filterSort(buys, 'b-search', 'b-cat-filter', 'b-sort');
+  document.getElementById('badge-buy').textContent = buys.length;
+  const tbody = document.getElementById('tbody-buy');
+  const empty = document.getElementById('empty-buy');
+  if (!list.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  const statusLabel = {
+    'in-stock': `<span style="color:var(--blue);font-size:0.75rem">在庫中</span>`,
+    'sold':     `<span style="color:var(--profit);font-size:0.75rem">已售出</span>`,
+    'removed':  `<span style="color:var(--muted);font-size:0.75rem">已移除</span>`
+  };
+  tbody.innerHTML = list.map(r => `<tr>
+    <td>${r.name}</td>
+    <td><span class="tag">${r.cat}</span></td>
+    <td class="num mono">${fmt(r.cost)}</td>
+    <td>${statusLabel[r.status]||''}</td>
+    <td style="color:var(--muted);font-size:0.78rem">${r.date}</td>
+    <td><button class="btn-edit" onclick="openEditModal('buy','${r.id}')">編輯</button><button class="btn-del" onclick="delBuy('${r.id}')">刪除</button></td>
+  </tr>`).join('');
+}
+
+function renderInv() {
+  setCats(inv, 'i-cat-filter');
+  const list = filterSort(inv, 'i-search', 'i-cat-filter', 'i-sort');
+  document.getElementById('badge-inv').textContent = inv.length;
+  const tbody = document.getElementById('tbody-inv');
+  const empty = document.getElementById('empty-inv');
+  if (!list.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = list.map(r => `<tr>
+    <td>${r.name}</td>
+    <td><span class="tag">${r.cat}</span></td>
+    <td class="num mono">${fmt(r.cost)}</td>
+    <td style="color:var(--muted);font-size:0.78rem">${r.date}</td>
+    <td>
+      <button class="btn-edit" onclick="openEditModal('inv','${r.id}')">編輯</button>
+      <button class="btn-sell" onclick="openSellModal('${r.id}')">售出</button><button class="btn-del" onclick="delInv('${r.id}')">移除</button>
+    </td>
+  </tr>`).join('');
+}
+
+function renderSold() {
+  setCats(sold, 's-cat-filter');
+  const list = filterSort(sold, 's-search', 's-cat-filter', 's-sort');
+  document.getElementById('badge-sold').textContent = sold.length;
+  const tbody = document.getElementById('tbody-sold');
+  const empty = document.getElementById('empty-sold');
+  if (!list.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = list.map(r => {
+    const profit = r.price - r.cost;
+    const margin = r.cost ? ((profit/r.cost)*100).toFixed(1) : null;
+    const sign = profit >= 0 ? '+' : '';
+    return `<tr>
+      <td>${r.name}</td>
+      <td><span class="tag">${r.cat}</span></td>
+      <td class="num mono">${fmt(r.cost)}</td>
+      <td class="num mono">${fmt(r.price)}</td>
+      <td class="num"><span class="${profit>=0?'profit-val':'loss-val'}">${sign}${fmt(profit)}</span></td>
+      <td class="num"><span class="margin-pill ${profit>=0?'margin-pos':'margin-neg'}">${margin?sign+margin+'%':'—'}</span></td>
+      <td style="color:var(--muted);font-size:0.78rem">${r.date}</td>
+      <td><button class="btn-edit" onclick="openEditModal('sold','${r.id}')">編輯</button><button class="btn-del" onclick="delSold('${r.id}')">刪除</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStats() {
+  const invCost = inv.reduce((s,r)=>s+r.cost,0);
+  const revenue = sold.reduce((s,r)=>s+r.price,0);
+  const cogs    = sold.reduce((s,r)=>s+r.cost,0);
+  const profit  = revenue - cogs;
+  document.getElementById('stat-inv').textContent      = inv.length;
+  document.getElementById('stat-inv-cost').textContent = fmt(invCost);
+  document.getElementById('stat-sold').textContent     = sold.length;
+  document.getElementById('stat-revenue').textContent  = fmt(revenue);
+  const el = document.getElementById('stat-profit');
+  el.textContent = fmt(profit);
+  el.className = 'val ' + (profit >= 0 ? 'pos' : 'neg');
+}
+
+// ── Keyboard ──────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (['b-name','b-cat','b-cost'].includes(e.target.id)) addBuy();
+    if (e.target.id === 'modal-price') confirmSell();
+  }
+});
+document.getElementById('sell-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Edit Modal ───────────────────────────────────────
+let editTarget = null;
+let editType = null;
+
+window.openEditModal = function(type, id) {
+  editType = type;
+  const lists = { buy: buys, inv: inv, sold: sold };
+  editTarget = lists[type].find(r => r.id === id);
+  if (!editTarget) return;
+  const titles = { buy: "編輯買入紀錄", inv: "編輯庫存", sold: "編輯售出紀錄" };
+  document.getElementById("edit-modal-title").textContent = titles[type];
+  document.getElementById("edit-modal-sub").textContent = editTarget.name;
+  const f = document.getElementById("edit-fields");
+  if (type === "buy") {
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("買入成本 (元)","e-cost","number",editTarget.cost);
+  } else if (type === "inv") {
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost);
+  } else {
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost) + field("售價 (元)","e-price","number",editTarget.price);
+  }
+  document.getElementById("edit-modal").classList.add("open");
+  setTimeout(() => document.getElementById("e-name").focus(), 50);
+};
+
+function field(label, id, type, val) {
+  return `<div style="margin-bottom:1rem"><label style="display:block;font-size:0.68rem;color:var(--muted);margin-bottom:0.35rem;letter-spacing:1px">${label}</label><input id="${id}" type="${type}" value="${val}" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.65rem 0.9rem;border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none"></div>`;
+}
+
+window.closeEditModal = function() {
+  document.getElementById("edit-modal").classList.remove("open");
+  editTarget = null; editType = null;
+};
+
+window.confirmEdit = async function() {
+  const name = document.getElementById("e-name").value.trim();
+  const cat  = document.getElementById("e-cat").value.trim() || "未分類";
+  const cost = parseFloat(document.getElementById("e-cost").value);
+  if (!name) return alert("請輸入商品名稱");
+  if (isNaN(cost) || cost < 0) return alert("請輸入有效成本");
+  try {
+    if (editType === "buy") {
+      await setDoc(doc(col("buys"), editTarget.id), {...editTarget, name, cat, cost});
+      const invMatch = inv.find(x => x.id === editTarget.id);
+      if (invMatch) await setDoc(doc(col("inv"), editTarget.id), {...invMatch, name, cat, cost});
+    } else if (editType === "inv") {
+      await setDoc(doc(col("inv"), editTarget.id), {...editTarget, name, cat, cost});
+      const buyMatch = buys.find(x => x.id === editTarget.id);
+      if (buyMatch) await setDoc(doc(col("buys"), editTarget.id), {...buyMatch, name, cat, cost});
+    } else {
+      const price = parseFloat(document.getElementById("e-price").value);
+      if (isNaN(price) || price < 0) return alert("請輸入有效售價");
+      await setDoc(doc(col("sold"), editTarget.id), {...editTarget, name, cat, cost, price});
+    }
+    closeEditModal();
+  } catch(e) { alert("儲存失敗：" + e.message); }
+};
+
+document.getElementById("edit-modal").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeEditModal();
+});
+
+
+// ── Expense (雜支) ─────────────────────────────────────
+window.addExpense = async function() {
+  const name   = document.getElementById('ex-name').value.trim();
+  const amount = parseFloat(document.getElementById('ex-amount').value);
+  const month  = document.getElementById('ex-month').value;
+  if (!name) return alert('請輸入項目名稱');
+  if (isNaN(amount) || amount < 0) return alert('請輸入有效金額');
+  if (!month) return alert('請選擇月份');
+  const id = Date.now().toString();
+  try {
+    await setDoc(doc(col('expenses'), id), { name, amount, month, ts: Date.now() });
+    ['ex-name','ex-amount'].forEach(i => document.getElementById(i).value = '');
+  } catch(e) { alert('儲存失敗：' + e.message); }
+};
+
+window.delExpense = async function(id) {
+  if (!confirm('確定刪除？')) return;
+  await deleteDoc(doc(col('expenses'), id));
+};
+
+// ── Monthly Render ────────────────────────────────────
+window.renderMonthly = function() {
+  // populate year select
+  const yearSel = document.getElementById('m-year');
+  if (!yearSel) return;
+  const curYear = yearSel.value || new Date().getFullYear().toString();
+  const allYears = new Set();
+  allYears.add(new Date().getFullYear().toString());
+  [...sold, ...expenses, ...buys].forEach(r => {
+    if (r.date) allYears.add(r.date.split('/')[0]);
+    if (r.month) allYears.add(r.month.split('-')[0]);
+  });
+  const sortedYears = [...allYears].sort((a,b)=>b-a);
+  yearSel.innerHTML = sortedYears.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}年</option>`).join('');
+
+  const selYear  = yearSel.value;
+  const selMonth = document.getElementById('m-month').value;
+
+  // build months to display
+  const months = selMonth
+    ? [`${selYear}-${selMonth}`]
+    : Array.from({length:12},(_,i)=>`${selYear}-${String(i+1).padStart(2,'0')}`);
+
+  // helper: does a record's date fall in a ym string "YYYY-MM"
+  const inYM = (dateStr, ym) => {
+    if (!dateStr) return false;
+    const [y,m] = ym.split('-');
+    const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
+    return parts[0] === y && parts[1] === m;
+  };
+
+  // build summary cards
+  const summaryEl = document.getElementById('monthly-summary');
+  let html = '<div style="display:grid;gap:12px">';
+
+  let grandRevenue=0, grandCogs=0, grandBuyCost=0, grandExpense=0;
+
+  months.forEach(ym => {
+    const [y,m] = ym.split('-');
+    const label = `${y}年${parseInt(m)}月`;
+
+    const monthSold   = sold.filter(r => inYM(r.date, ym));
+    const monthBuys   = buys.filter(r => inYM(r.date, ym));
+    const monthExp    = expenses.filter(r => r.month === ym);
+
+    const revenue  = monthSold.reduce((s,r)=>s+r.price, 0);
+    const cogs     = monthSold.reduce((s,r)=>s+r.cost,  0);
+    const buyCost  = monthBuys.reduce((s,r)=>s+r.cost,  0);
+    const expTotal = monthExp.reduce((s,r)=>s+r.amount,  0);
+    const profit   = revenue - cogs - expTotal;
+
+    if (revenue===0 && buyCost===0 && expTotal===0) return;
+
+    grandRevenue += revenue; grandCogs += cogs;
+    grandBuyCost += buyCost; grandExpense += expTotal;
+
+    const pClass = profit>=0 ? 'var(--profit)' : 'var(--loss)';
+    const sign   = profit>=0 ? '+' : '';
+
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem">
+      <div style="font-size:0.8rem;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:1rem">${label}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">進貨成本</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:var(--text)">${fmt(buyCost)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">售出收入</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:var(--text)">${fmt(revenue)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">雜支</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:var(--loss)">${expTotal>0?'-':''} ${fmt(expTotal)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem;border:1px solid ${profit>=0?'rgba(60,240,160,0.2)':'rgba(240,74,60,0.2)'}">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">淨利潤</div>
+          <div style="font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;color:${pClass}">${sign}${fmt(profit)}</div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  if (months.length > 1 && (grandRevenue||grandBuyCost||grandExpense)) {
+    const totalProfit = grandRevenue - grandCogs - grandExpense;
+    const pClass = totalProfit>=0 ? 'var(--profit)' : 'var(--loss)';
+    const sign = totalProfit>=0 ? '+' : '';
+    html += `<div style="background:var(--surface);border:1px solid rgba(200,240,60,0.3);border-radius:12px;padding:1.25rem">
+      <div style="font-size:0.8rem;color:var(--accent);font-family:'Space Mono',monospace;margin-bottom:1rem">全年合計</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">進貨成本</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem">${fmt(grandBuyCost)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">售出收入</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem">${fmt(grandRevenue)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">雜支合計</div>
+          <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:var(--loss)">${grandExpense>0?'-':''} ${fmt(grandExpense)}</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:0.75rem;border:1px solid ${totalProfit>=0?'rgba(60,240,160,0.3)':'rgba(240,74,60,0.3)'}">
+          <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px">年度淨利潤</div>
+          <div style="font-family:'Space Mono',monospace;font-size:1.1rem;font-weight:700;color:${pClass}">${sign}${fmt(totalProfit)}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+  summaryEl.innerHTML = html || '<div class="empty">此期間無資料</div>';
+
+  // expense list
+  const filtered = selMonth
+    ? expenses.filter(r => r.month === `${selYear}-${selMonth}`)
+    : expenses.filter(r => r.month && r.month.startsWith(selYear));
+  const tbody = document.getElementById('tbody-expense');
+  const empty = document.getElementById('empty-expense');
+  if (!filtered.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = filtered.map(r => {
+    const [y,m] = (r.month||'').split('-');
+    const label = y && m ? `${y}年${parseInt(m)}月` : r.month;
+    return `<tr>
+      <td>${r.name}</td>
+      <td style="color:var(--muted);font-size:0.78rem">${label}</td>
+      <td class="num" style="color:var(--loss);font-family:'Space Mono',monospace">-${fmt(r.amount)}</td>
+      <td><button class="btn-del" onclick="delExpense('${r.id}')">刪除</button></td>
+    </tr>`;
+  }).join('');
+};
+
+// Set default month input to current month
+const _now = new Date();
+const _defaultMonth = _now.getFullYear() + '-' + String(_now.getMonth()+1).padStart(2,'0');
+const _exMonth = document.getElementById('ex-month');
+if (_exMonth) _exMonth.value = _defaultMonth;
+
+init();
+</script>
 </body>
 </html>
