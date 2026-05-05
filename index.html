@@ -808,7 +808,7 @@ window.renderMonthly = function() {
   const allYears = new Set();
   allYears.add(new Date().getFullYear().toString());
   [...sold, ...expenses, ...buys].forEach(r => {
-    if (r.date) allYears.add(r.date.split('/')[0]);
+    if (r.date) allYears.add(r.date.includes('-') ? r.date.split('-')[0] : r.date.split('/')[0]);
     if (r.month) allYears.add(r.month.split('-')[0]);
   });
   const sortedYears = [...allYears].sort((a,b)=>b-a);
@@ -825,10 +825,16 @@ window.renderMonthly = function() {
   // helper: does a record's date fall in a ym string "YYYY-MM"
   const inYM = (dateStr, ym) => {
     if (!dateStr) return false;
-    const [y,m] = ym.split('-');
-    const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
-    return parts[0] === y && parts[1] === m;
+    const [y,m] = ym.split("-");
+    const parts = dateStr.includes("-") ? dateStr.split("-") : dateStr.split("/");
+    return parts[0] === y && parseInt(parts[1]) === parseInt(m);
   };
+
+
+
+
+
+
 
   // build summary cards
   const summaryEl = document.getElementById('monthly-summary');
