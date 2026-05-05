@@ -731,11 +731,11 @@ window.openEditModal = function(type, id) {
   document.getElementById("edit-modal-sub").textContent = editTarget.name;
   const f = document.getElementById("edit-fields");
   if (type === "buy") {
-    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("買入成本 (元)","e-cost","number",editTarget.cost);
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("買入成本 (元)","e-cost","number",editTarget.cost) + field("日期","e-date","date",toInputDate(editTarget.date));
   } else if (type === "inv") {
-    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost);
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost) + field("日期","e-date","date",toInputDate(editTarget.date));
   } else {
-    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost) + field("售價 (元)","e-price","number",editTarget.price);
+    f.innerHTML = field("商品名稱","e-name","text",editTarget.name) + field("分類","e-cat","text",editTarget.cat) + field("成本 (元)","e-cost","number",editTarget.cost) + field("售價 (元)","e-price","number",editTarget.price) + field("日期","e-date","date",toInputDate(editTarget.date));
   }
   document.getElementById("edit-modal").classList.add("open");
   setTimeout(() => document.getElementById("e-name").focus(), 50);
@@ -743,6 +743,20 @@ window.openEditModal = function(type, id) {
 
 function field(label, id, type, val) {
   return `<div style="margin-bottom:1rem"><label style="display:block;font-size:0.68rem;color:var(--muted);margin-bottom:0.35rem;letter-spacing:1px">${label}</label><input id="${id}" type="${type}" value="${val}" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.65rem 0.9rem;border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none"></div>`;
+}
+
+function toInputDate(dateStr) {
+  if (!dateStr) return '';
+  // handles "2026/5/4" or "2026-05-04"
+  const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
+  return parts[0] + '-' + String(parts[1]).padStart(2,'0') + '-' + String(parts[2]).padStart(2,'0');
+}
+
+function toDisplayDate(inputVal) {
+  // convert "2026-05-04" back to "2026/5/4" (zh-TW style)
+  if (!inputVal) return '';
+  const [y,m,d] = inputVal.split('-');
+  return y + '/' + parseInt(m) + '/' + parseInt(d);
 }
 
 window.closeEditModal = function() {
@@ -758,17 +772,20 @@ window.confirmEdit = async function() {
   if (isNaN(cost) || cost < 0) return alert("請輸入有效成本");
   try {
     if (editType === "buy") {
-      await setDoc(doc(col("buys"), editTarget.id), {...editTarget, name, cat, cost});
+      const date = toDisplayDate(document.getElementById("e-date").value) || editTarget.date;
+      await setDoc(doc(col("buys"), editTarget.id), {...editTarget, name, cat, cost, date});
       const invMatch = inv.find(x => x.id === editTarget.id);
-      if (invMatch) await setDoc(doc(col("inv"), editTarget.id), {...invMatch, name, cat, cost});
+      if (invMatch) await setDoc(doc(col("inv"), editTarget.id), {...invMatch, name, cat, cost, date});
     } else if (editType === "inv") {
-      await setDoc(doc(col("inv"), editTarget.id), {...editTarget, name, cat, cost});
+      const date = toDisplayDate(document.getElementById("e-date").value) || editTarget.date;
+      await setDoc(doc(col("inv"), editTarget.id), {...editTarget, name, cat, cost, date});
       const buyMatch = buys.find(x => x.id === editTarget.id);
-      if (buyMatch) await setDoc(doc(col("buys"), editTarget.id), {...buyMatch, name, cat, cost});
+      if (buyMatch) await setDoc(doc(col("buys"), editTarget.id), {...buyMatch, name, cat, cost, date});
     } else {
       const price = parseFloat(document.getElementById("e-price").value);
       if (isNaN(price) || price < 0) return alert("請輸入有效售價");
-      await setDoc(doc(col("sold"), editTarget.id), {...editTarget, name, cat, cost, price});
+      const date = toDisplayDate(document.getElementById("e-date").value) || editTarget.date;
+      await setDoc(doc(col("sold"), editTarget.id), {...editTarget, name, cat, cost, price, date});
     }
     closeEditModal();
   } catch(e) { alert("儲存失敗：" + e.message); }
