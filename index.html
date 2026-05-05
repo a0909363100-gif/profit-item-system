@@ -174,10 +174,23 @@
 
   @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
   tbody tr { animation: slideIn 0.18s ease; }
-  .sort-btn { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer; font-size: 0.65rem; padding: 1px 5px; border-radius: 4px; transition: all 0.15s; margin-left: 3px; }
-  .sort-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .sort-btn.active-desc { border-color: var(--accent); color: var(--accent); background: rgba(200,240,60,0.1); }
-  .sort-btn.active-asc  { border-color: var(--blue);   color: var(--blue);   background: rgba(60,184,240,0.1); }
+  .sort-btn {
+    background: var(--surface2);
+    border: 1px solid #444;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    margin-left: 5px;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .sort-btn:hover { border-color: #fff; color: #fff; background: #333; }
+  .sort-btn.active-desc { border-color: #c8f03c; color: #000; background: #c8f03c; }
+  .sort-btn.active-asc  { border-color: #3cb8f0; color: #000; background: #3cb8f0; }
 
   @media (max-width: 680px) {
     .buy-grid { grid-template-columns: 1fr 1fr; }
@@ -262,7 +275,7 @@
       </select>
     </div>
     <div class="table-wrap">
-      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">買入成本 <button class="sort-btn" id="b-cost-btn" onclick="colSort('buy','cost','b-cost-btn','b-sort')"></button></th><th>狀態</th><th>日期 <button class="sort-btn" id="b-date-btn" onclick="colSort('buy','date','b-date-btn','b-sort')"></button></th><th></th></tr></thead>
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">買入成本 <button class="sort-btn" id="b-cost-btn" onclick="colSort('buy','cost','b-cost-btn','b-sort')">價格</button></th><th>狀態</th><th>日期 <button class="sort-btn" id="b-date-btn" onclick="colSort('buy','date','b-date-btn','b-sort')">日期</button></th><th></th></tr></thead>
       <tbody id="tbody-buy"></tbody></table>
       <div class="empty" id="empty-buy">尚無買入紀錄，請新增 👆</div>
     </div>
@@ -280,7 +293,7 @@
       </select>
     </div>
     <div class="table-wrap">
-      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本 <button class="sort-btn" id="i-cost-btn" onclick="colSort('inv','cost','i-cost-btn','i-sort')"></button></th><th>入庫日期 <button class="sort-btn" id="i-date-btn" onclick="colSort('inv','date','i-date-btn','i-sort')"></button></th><th></th></tr></thead>
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本 <button class="sort-btn" id="i-cost-btn" onclick="colSort('inv','cost','i-cost-btn','i-sort')">價格</button></th><th>入庫日期 <button class="sort-btn" id="i-date-btn" onclick="colSort('inv','date','i-date-btn','i-sort')">日期</button></th><th></th></tr></thead>
       <tbody id="tbody-inv"></tbody></table>
       <div class="empty" id="empty-inv">庫存為空 📦</div>
     </div>
@@ -300,7 +313,7 @@
       </select>
     </div>
     <div class="table-wrap">
-      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本 <button class="sort-btn" id="s-cost-btn" onclick="colSort('sold','cost','s-cost-btn','s-sort')"></button></th><th class="num">售價</th><th class="num">利潤</th><th class="num">毛利率</th><th>售出日期 <button class="sort-btn" id="s-date-btn" onclick="colSort('sold','date','s-date-btn','s-sort')"></button></th><th></th></tr></thead>
+      <table><thead><tr><th>商品名稱</th><th>分類</th><th class="num">成本 <button class="sort-btn" id="s-cost-btn" onclick="colSort('sold','cost','s-cost-btn','s-sort')">價格</button></th><th class="num">售價</th><th class="num">利潤</th><th class="num">毛利率</th><th>售出日期 <button class="sort-btn" id="s-date-btn" onclick="colSort('sold','date','s-date-btn','s-sort')">日期</button></th><th></th></tr></thead>
       <tbody id="tbody-sold"></tbody></table>
       <div class="empty" id="empty-sold">尚無售出紀錄 ✅</div>
     </div>
@@ -600,6 +613,12 @@ window.switchTab = function(t) {
 // ── Helpers ───────────────────────────────────────────
 const fmt = n => '$' + Number(n).toLocaleString('zh-TW');
 
+function parseDate(d) {
+  if (!d) return 0;
+  const p = d.includes('-') ? d.split('-') : d.split('/');
+  return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getTime();
+}
+
 function filterSort(list, searchId, catFilterId, sortId) {
   const q  = document.getElementById(searchId).value.toLowerCase();
   const cf = document.getElementById(catFilterId).value;
@@ -609,13 +628,14 @@ function filterSort(list, searchId, catFilterId, sortId) {
     (!cf || r.cat === cf)
   );
   out.sort((a, b) => {
-    if (sv === 'date-asc')    return (a.ts||0) - (b.ts||0);
+    if (sv === 'date-desc')   return parseDate(b.date) - parseDate(a.date);
+    if (sv === 'date-asc')    return parseDate(a.date) - parseDate(b.date);
     if (sv === 'cost-desc')   return b.cost - a.cost;
     if (sv === 'cost-asc')    return a.cost - b.cost;
     if (sv === 'profit-desc') return (b.price-b.cost) - (a.price-a.cost);
     if (sv === 'profit-asc')  return (a.price-a.cost) - (b.price-b.cost);
     if (sv === 'margin-desc') return (b.cost?(b.price-b.cost)/b.cost:0)-(a.cost?(a.price-a.cost)/a.cost:0);
-    return (b.ts||0) - (a.ts||0);
+    return parseDate(b.date) - parseDate(a.date);
   });
   return out;
 }
